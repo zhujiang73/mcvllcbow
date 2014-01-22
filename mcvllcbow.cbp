@@ -33,12 +33,7 @@
 		<Compiler>
 			<Add option="-march=core2" />
 			<Add option="-O2" />
-			<Add directory="../../Octave3.6.4/include/octave-3.6.4" />
-			<Add directory="../../Octave3.6.4/include" />
 		</Compiler>
-		<Linker>
-			<Add directory="../../Octave3.6.4/lib/octave/3.6.4" />
-		</Linker>
 		<Unit filename="main.cpp" />
 		<Extensions>
 			<code_completion />

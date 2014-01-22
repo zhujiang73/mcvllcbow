@@ -118,7 +118,6 @@ void  opencv_llc_bow_Descriptor(Mat &image, Mat &vocabulary,  vector<KeyPoint> &
         matcher -> knnMatch( descriptors, vocabulary, matches, knn );
 
         Mat  des_mat_r01;
-        //std::cout << "llc " << std::endl;
         for (int icx=0; icx<descriptors.rows; icx++)
         {
                 des_mat_r01 = descriptors.row(icx);
@@ -160,7 +159,6 @@ void  opencv_llc_bow_Descriptor(Mat &image, Mat &vocabulary,  vector<KeyPoint> &
         }
 
         llc_descriptor = llc_descriptor/(descriptors.rows*1.0);
-        //std::cout << "llc end" << std::endl;
 }
 
 
@@ -217,9 +215,6 @@ void ComputeBowImageDescriptors( const string& databaseDir,
 
                                 imageDescriptor = Mat::zeros(1, VOCA_COLS, CV_32F);
 
-				//bowExtractor -> compute( image, keyPoints, imageDescriptor );
-
-				//mk_llc_bow_Descriptor( image, vocabulary, keyPoints, imageDescriptor );
 				opencv_llc_bow_Descriptor( image, vocabulary, keyPoints, imageDescriptor );
 
 				//std::cout << "imageDescriptor rows cols = " << imageDescriptor.rows << "  "
