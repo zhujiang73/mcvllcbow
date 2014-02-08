@@ -17,7 +17,7 @@
 //#define MAX_PATH 512
 
 #define MIN_KPS    3
-#define VOCA_COLS  1000
+#define VOCA_COLS  2000
 
 using namespace cv;
 using namespace std;
@@ -30,7 +30,6 @@ void GetFileList( const string& directory, vector<string>* filelist );
 const string kVocabularyFile( "vocabulary.xml.gz" );
 const string kBowImageDescriptorsDir( "bagOfWords" );
 const string kSvmsDirs( "svms" );
-string resultDir;
 
 class Params {
 public:
@@ -163,21 +162,15 @@ void  opencv_llc_bow_Descriptor(Mat &image, Mat &vocabulary,  vector<KeyPoint> &
 
 
 // bag of words of an image as its descriptor, not keypoint descriptors
-void ComputeBowImageDescriptors( const string& databaseDir,
+void ComputeBowImageDescriptors( const string& databaseDir, Mat& vocabulary,
 								 const vector<string>& categories,
 								 const Ptr<FeatureDetector>& detector,
 								 const Ptr<DescriptorExtractor>& extractor,
 								 Ptr<BOWImgDescriptorExtractor>& bowExtractor,
 								 const string& imageDescriptorsDir,
 								 map<string, Mat>* samples) {
-        Mat vocabulary;
-        std::string vocabularyFile = resultDir + kVocabularyFile;
 
-        FileStorage fs( vocabularyFile, FileStorage::READ );
-        if ( fs.isOpened() )  fs["vocabulary"] >> vocabulary;
-
-        std::cout << "vocabulary rows cols = " << vocabulary.rows << "  "
-                        << vocabulary.cols << std::endl;
+        std::cout << "vocabulary rows cols = " << vocabulary.rows << "  " << vocabulary.cols << std::endl;
 
 	for (uint32_t  i = 0; i != categories.size(); ++i ) {
 		string currentCategory = databaseDir + '/' + categories[i];
@@ -259,34 +252,39 @@ void test( char* argv[] )
 {
 	Params params;
 
-	string  train_dir  = argv[2];
+	string  sample_name  = argv[2];
 	string  test_dir  = argv[3];
-	string  sample_name = argv[4];
-	string  result_dir = argv[5];
-
-	string  imgs_dir =  test_dir + "/" + sample_name;
-
-	string  svms_dir = result_dir + "/" + kSvmsDirs;
+	string  svms_dir = argv[4];
+	string  voc_fn = argv[5];
 
 	Ptr<FeatureDetector> detector = FeatureDetector::create( params.detectorType );
 	Ptr<DescriptorExtractor> extractor = DescriptorExtractor::create( params.descriptorType );
 
-	vector<string>  imgs_fn;
+	vector<string>  imgs_fns;
 	vector<string>  names_img_class;
+	vector<string>  svms_fns;
 
-	GetDirList( train_dir, &names_img_class );
-
-	GetFileList( imgs_dir, &imgs_fn );
+	GetFileList( svms_dir, &svms_fns );
+	GetFileList( test_dir, &imgs_fns );
 
 	map<string, CvSVM*>  svms_map;
 
-	for ( vector<string>::iterator itr = names_img_class.begin(); itr != names_img_class.end();  itr++)
+	for ( vector<string>::iterator itr = svms_fns.begin(); itr != svms_fns.end();  itr++)
 	{
-                string   name_ic = *itr;
+                string   svm_fn = *itr;
+
+                int  n = svm_fn.find(".xml.gz");
+
+                string   name_ic;
+
+                name_ic.assign(svm_fn, 0, n);
+
+                //std::cout << "name_ic = " << name_ic << std::endl;
 
 		CvSVM  *psvm = new CvSVM;
 
-		string svmFileName = svms_dir + "/" + name_ic + ".xml.gz";
+		string svmFileName = svms_dir + "/" + svm_fn;
+
 		FileStorage fs( svmFileName, FileStorage::READ );
 		if ( fs.isOpened() )
 		{
@@ -301,25 +299,29 @@ void test( char* argv[] )
                         exit(-1);
                 }
 
-                std::cout << svmFileName << std::endl;
-
+                std::cout << name_ic << " svm :  " << svmFileName << std::endl;
 	}
 
  	Mat vocabulary;
-	std::string vocabularyFile =  result_dir + "/" + kVocabularyFile;
+	std::string vocabularyFile =  voc_fn;
 
         FileStorage fs( vocabularyFile, FileStorage::READ );
 	if ( fs.isOpened() )  fs["vocabulary"] >> vocabulary;
 
+        std::cout << "vocabularyFile :  " << vocabularyFile << std::endl;
+        std::cout << "vocabulary rows cols = " << vocabulary.rows << "  " << vocabulary.cols << std::endl;
+
+        std::cout << sample_name << " test...  " << std::endl;
+
         int  num_correct = 0;
 
-        for ( vector<string>::iterator itr = imgs_fn.begin(); itr != imgs_fn.end();  itr++)
+        for ( vector<string>::iterator itr = imgs_fns.begin(); itr != imgs_fns.end();  itr++)
         {
                 string  category;
 
                 string  img_fn = *itr;
 
-                string  queryImage = imgs_dir + "/" + img_fn;
+                string  queryImage = test_dir + "/" + img_fn;
 
                 Mat image = imread( queryImage );
 
@@ -366,7 +368,7 @@ void test( char* argv[] )
                 if (sample_name == category) num_correct++;
         }
 
-        std::cout << num_correct << " " << imgs_fn.size() << " " << num_correct*1.0/imgs_fn.size() << std::endl;
+        std::cout << num_correct << " " << imgs_fns.size() << " " << num_correct*1.0/imgs_fns.size() << std::endl;
 }
 
 void  train(char* argv[])
@@ -374,7 +376,7 @@ void  train(char* argv[])
 	Params params;
 
 	string databaseDir = argv[2];
-	resultDir = argv[3];
+	string resultDir = argv[3];
 
 	string bowImageDescriptorsDir = resultDir + kBowImageDescriptorsDir;
 	string svmsDir = resultDir + kSvmsDirs;
@@ -411,7 +413,7 @@ void  train(char* argv[])
 	bowExtractor -> setVocabulary( vocabulary );
 	map<string, Mat> samples;//key: category name, value: histogram
 
-	ComputeBowImageDescriptors( databaseDir, categories, detector, extractor, bowExtractor, bowImageDescriptorsDir,  &samples );
+	ComputeBowImageDescriptors( databaseDir, vocabulary, categories, detector, extractor, bowExtractor, bowImageDescriptorsDir,  &samples );
 
 	SVMParams svmParams;
 	svmParams.svm_type = CvSVM::C_SVC;
@@ -437,14 +439,12 @@ void  train(char* argv[])
 int main( int argc, char* argv[] )
 {
 	cv::initModule_nonfree();
-	// read params
 
 	if ( argc < 2)
 	{
 		help( argv[0] );
 		return -1;
 	}
-
 
         string  str_cmd = argv[1];
 
@@ -463,8 +463,17 @@ int main( int argc, char* argv[] )
 	return 0;
 }
 
-void help( const char* progName ) {
-	std::cout << "OpenCV LLC BOW TEST" << std::endl;
+void help( const char* progName )
+{
+	std::cout << "OpenCV LLC BOW ..." << std::endl << std::endl;
+
+	std::cout << "train: " << progName << " [train] [databaseDir] [resultDir] " << std::endl;
+	std::cout << "  example: " << progName << " train  ../data/train/  ../data/result/ " << std::endl;
+
+	std::cout << std::endl;
+
+	std::cout << "test: " << progName << " [test] [sample_name] [test_dir] [svms_dir] [vocabulary_file] " << std::endl;
+	std::cout << "  example: " << progName << " test  sunflower  ../data/imgs/sunflower  ../data/result/svms  ../data/result/vocabulary.xml.gz" << std::endl;
 }
 
 void MakeDir( const string& filepath )
@@ -478,19 +487,11 @@ void MakeDir( const string& filepath )
         #else
                 mkdir(path, 0755);
         #endif
-	//CreateDirectory( path, 0 );
-
-	//int status;
-
-
-        //status = mkdir(path, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
 }
 
 void ListDir( const string& directory, vector<string>* entries)
 {
-        //WIN32_FIND_DATA  entry;
 	char dir[MAX_PATH];
-	//HANDLE hFind;
 	string  str_dir = directory;
 
 	strncpy(dir, str_dir.c_str(), MAX_PATH);
@@ -500,7 +501,7 @@ void ListDir( const string& directory, vector<string>* entries)
 
         p_dir = opendir(dir);
 
-        while(p_dirent = readdir(p_dir))    //读取目录输出目录项的节点号和文件名
+        while(p_dirent = readdir(p_dir))
         {
                 string  str_fn = p_dirent->d_name;
 
